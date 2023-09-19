@@ -1,27 +1,226 @@
 ---
 title: "lab-04"
 author: "Tyler Gallagher"
-format: html
+format:
+   html:
+     embed-resources: true
 editor: visual
 ---
 
-## Quarto
+## Section 1
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
-```{r}
-1 + 1
+```{R}
+library(data.table)
+if (!file.exists("met_all.gz"))
+  download.file(
+    url = "https://raw.githubusercontent.com/USCbiostats/data-science-data/master/02_met/met_all.gz",
+    destfile = "met_all.gz",
+    method   = "libcurl",
+    timeout  = 60
+    )
+met <- data.table::fread("met_all.gz")
 ```
 
-You can add options to executable code like this
+## Section 2
 
 ```{r}
-#| echo: false
-2 * 2
+library(tidyverse)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+```{r}
+summary(met$temp)
+```
+
+```{r}
+met <- met[temp>-17]
+met2 <- met[order(temp)]
+head(met2)
+```
+
+```{r}
+summary(met$temp)
+```
+
+```{r}
+met$date = as.Date(paste(met$year, met$month, met$day, sep ="-"))
+```
+
+```{r}
+data.table::week
+```
+
+```{r}
+head(met)
+table(met$date)
+```
+
+```{r}
+met.wk1 <- met[day >= 1 & day <= 7]
+```
+
+```{r}
+head(met.wk1$day)
+tail(met.wk1$day)
+summary(met.wk1$day)
+```
+
+```{r}
+met[met$elev==9990.0] <- NA
+met.wk1[met.wk1$elev==9999.0] <- NA
+summary(met.wk1$temp)
+summary(met.wk1$rh)
+summary(met.wk1$wind.sp)
+summary(met.wk1$vis.dist)
+summary(met.wk1$dew.point)
+summary(met.wk1$lat)
+summary(met.wk1$lon)
+summary(met.wk1$elev)
+```
+
+```{r}
+met.wk1$region <- ifelse(met.wk1$lon < -98.00 & met.wk1$lat >= 39.71, "NW",
+                           ifelse(met.wk1$lon < -98.00 & met.wk1$lat <39.71, "SW",
+                                  ifelse(met.wk1$lon >= -98.00 & met.wk1$lat >= 39.71, "NE",
+                                         ifelse(met.wk1$lon >= -98.00 & met.wk1$lat < 39.71, "SE", NA))))
+```
+
+```{r}
+table(met.wk1$region)
+```
+
+```{r}
+met.wk1[, elev_cat := fifelse(elev > 252, "high", "low")]
+```
+
+## Section 3
+
+```{r}
+help(geom_violin)
+```
+
+```{r}
+ggplot(met.wk1) + 
+  geom_violin(mapping = aes(x = 1, y = temp))
+```
+
+I simply plotted out the frequencies of temperature.This is approximately normally distributed temperature.
+
+## Section 4
+
+```{r}
+ggplot(data = met.wk1, aes(x = wind.sp, y = dew.point, color = region)) +
+  geom_jitter(width = 0.2, height = 0.2, alpha = 0.5) +  # Add jittered points
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+There is an inconsistent correlation between wind speed and dew point by region. There appears to be a negative association in the southwest but a positive association in all other regions.
+
+## Section 5
+
+```{r}
+met.wk1[!is.na(elev_cat)] %>%
+  ggplot() + 
+  geom_bar(mapping = aes(x = elev_cat, fill = region), position = "dodge")+
+  scale_fill_brewer(palette = "Accent") + 
+  labs (x = "Elevation Category", y = "n")
+```
+
+In relative terms, the Southeast has many more weather stations at low elevation than high. The Northwest, Southwest, and Northeast have more at high elevation category than low elevation category.
+
+## Section 6
+
+```{r}
+cran_mirror_url <- "https://cran.cnr.berkeley.edu"
+install.packages("package_name", repos = cran_mirror_url)
+```
+
+```{r}
+install.packages("Hmisc", repos = "https://cran.cnr.berkeley.edu")
+library("Hmisc")
+l <- met.wk1[!is.na(region)] %>%
+  ggplot(mapping = aes (x = region, y = dew.point, fill = region, col = region)) + 
+    stat_summary(, fun.data="mean_sdl") + 
+    stat_summary (geom = "errorbar")
+
+l
+```
+
+Dew point average in each region is seen above.
+
+```{r}
+m <- met.wk1[!is.na(region)] %>%
+  ggplot(mapping = aes (x = region, y = wind.sp, fill = region, col = region)) + 
+    stat_summary(, fun.data="mean_sdl") + 
+    stat_summary (geom = "errorbar")
+
+m
+```
+
+Wind speed average in each region is seen above.
+
+## Section 7
+
+```{r}
+install.packages("leaflet", repos = "https://cran.cnr.berkeley.edu")
+```
+
+```{r}
+library(leaflet)
+```
+
+```{r}
+met_avg <- met.wk1[,.(rh = mean(rh,na.rm=TRUE), lat = mean(lat), lon = mean(lon)),  by=c("USAFID")]
+met_avg <- met_avg[!is.na(rh)]
+```
+
+```{r}
+n <- leaflet() %>%
+  setView(lng = -95.7129, lat = 37.0902, zoom = 4)
+color_pal <- colorNumeric(
+  palette = c("blue", "red"),  # Customize the colors here
+  domain = met_avg$rh
+)
+n <- n %>%
+  addProviderTiles('OpenStreetMap')
+n <- n %>%
+  addCircleMarkers(
+    data = met_avg,
+    lng = ~lon,
+    lat = ~lat,
+    radius = 5,
+    color = ~color_pal(rh)
+  )
+top_10_humidity <- met_avg %>%
+  arrange(desc(rh)) %>%
+  head(10)
+n <- n %>%
+  addMarkers(
+    data = top_10_humidity,
+    lng = ~lon,
+    lat = ~lat,
+    label = ~paste("RH:", rh, "%")
+  )
+legend_values <- seq(min(met_avg$rh), max(met_avg$rh), length.out = 5)
+legend_labels <- c("Low", "Moderate", "Moderate-High", "High", "Very High")
+n <- n %>%
+  addLegend(
+    position = "bottomright",
+    values = c(10, 30, 50, 70, 90),  
+    pal = color_pal,
+    title = "Relative Humidity",
+    opacity = 1,
+    labels = c("Low", "Moderate", "Moderate-High", "High", "Very High")
+  )
+n
+```
+
+The areas of highest relative humidity are mostly concentrated around the coastlines.
+
+## Section 8
+
+```{r}
+library(ggplot2)
+library(ggpubr)
+p <- ggboxplot(data = met.wk1, x = "elev_cat", y = "wind.sp", palette = "jco")
+p
+```
