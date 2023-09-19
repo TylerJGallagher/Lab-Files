@@ -1,0 +1,183 @@
+---
+title: "lab-03-eda"
+author: "Tyler Gallagher"
+format:
+   html:
+     embed-resources: true
+editor: visual
+---
+
+## Section 1
+
+```{r}
+download.file(
+  "https://raw.githubusercontent.com/USCbiostats/data-science-data/master/02_met/met_all.gz",
+  destfile = file.path("~", "Downloads", "met_all.gz"),
+  method   = "libcurl",
+  timeout  = 60
+)
+
+met <- data.table::fread(file.path("~", "Downloads", "met_all.gz"))
+```
+
+## Section 2
+
+```{r}
+dim(met)
+head(met)
+tail(met)
+```
+
+## Section 3
+
+```{r}
+str(met)
+```
+
+## Section 4
+
+```{r}
+table(met$year)
+table(met$day)
+table(met$hour)
+summary(met$temp)
+summary(met$elev)
+summary(met$wind.sp)
+```
+
+```{r}
+met[met$elev==9999.0] <- NA
+summary(met$elev)
+```
+
+```{r}
+met <- met[temp>-40]
+met2 <- met[order(temp)]
+head(met2)
+```
+
+```{R}
+summary(met$temp)
+```
+
+## Section 5
+
+```{r}
+met <- met[temp>-15]
+met2 <- met[order(temp)]
+head(met2)
+```
+
+```{r}
+summary(met$temp)
+```
+
+## Section 6
+
+```{r}
+elev <- met[elev==max(elev), ]
+summary(elev)
+```
+
+```{r}
+cor(elev$temp, elev$wind.sp, use="complete")
+```
+
+```{r}
+cor(elev$temp, elev$hour, use="complete")
+```
+
+```{R}
+cor(elev$wind.sp, elev$day, use="complete")
+```
+
+```{r}
+cor(elev$wind.sp, elev$hour, use="complete")
+```
+
+```{r}
+cor(elev$temp, elev$day, use="complete")
+```
+
+## Section 7
+
+```{r}
+hist(met$elev, breaks=100)
+```
+
+```{r}
+hist(met$temp)
+```
+
+```{r}
+hist(met$wind.sp)
+```
+
+```{r}
+library(leaflet)
+```
+
+```{r}
+leaflet(elev) %>%
+  addProviderTiles('OpenStreetMap') %>%
+  addCircles(lat=~lat,lng=~lon, opacity=1, fillOpacity=1, radius=100)
+```
+
+```{r}
+library(lubridate)
+elev$date <- with(elev, ymd_h(paste(year, month, day, hour, sep= ' ')))
+summary(elev$date)
+```
+
+```{r}
+elev <- elev[order(date)]
+head(elev)
+```
+
+```{r}
+plot(elev$date, elev$temp, type='l')
+```
+
+```{r}
+plot(elev$date, elev$wind.sp, type='l')
+```
+
+## Section 8
+
+Question: Is there any correlation between wind speed (wind.sp) and elevation (elev)?
+
+```{R}
+str(met)
+
+```
+
+```{R}
+table(met$wind.sp)
+table(met$lat)
+```
+
+```{R}
+summary(met$wind.sp)
+```
+
+```{R}
+summary(met$elev)
+```
+
+Missing many variables, but okay to proceed. A small amount below 0 in elevation is understandable.
+
+```{R}
+hist(met$elev)
+hist(met$wind.sp)
+```
+
+```{R}
+cor(met$elev, met$wind.sp, use="complete")
+```
+
+```{R}
+mod <- lm(elev ~ wind.sp, data = met)
+met[, plot(elev, wind.sp, pch = 19, cex = 0.25, main = "Elevation and Wind Speed", xlab = "Elevation", ylab = "Wind Speed")]
+```
+
+There does appear to be some correlation between the variables, though the extent of this and its statistical significance would require more analysis.
