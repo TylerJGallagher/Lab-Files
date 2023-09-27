@@ -1,0 +1,216 @@
+---
+title: "lab-05"
+author: "Tyler Gallagher"
+format:
+   html:
+     embed-resources: true
+editor: visual
+---
+
+## Merging the Data
+
+```{r}
+library(data.table)
+library(dplyr)
+library(dtplyr)
+```
+
+```{r}
+stations <- fread("ftp://ftp.ncdc.noaa.gov/pub/data/noaa/isd-history.csv")
+stations[, USAF := as.integer(USAF)]
+# Dealing with NAs and 999999
+stations[, USAF   := fifelse(USAF == 999999, NA_integer_, USAF)]
+stations[, CTRY   := fifelse(CTRY == "", NA_character_, CTRY)]
+stations[, STATE  := fifelse(STATE == "", NA_character_, STATE)]
+# Selecting the three relevant columns, and keeping unique records
+stations <- unique(stations[, list(USAF, CTRY, STATE)])
+# Dropping NAs
+stations <- stations[!is.na(USAF)]
+```
+
+```{r}
+download.file(
+  "https://raw.githubusercontent.com/USCbiostats/data-science-data/master/02_met/met_all.gz",
+  destfile = file.path("~", "Downloads", "met_all.gz"),
+  method   = "libcurl",
+  timeout  = 60
+)
+
+met <- data.table::fread(file.path("~", "Downloads", "met_all.gz"))
+```
+
+```{r}
+head(stations, n = 4)
+head(met, n = 4)
+nrow(met)
+nrow(stations)
+```
+
+```{r}
+met_stations <- left_join(
+  x = met,
+  y = stations,
+  by = c("USAFID" = "USAF")
+)
+```
+
+```{r}
+nrow(met_stations)
+```
+
+```{r}
+stations[, n := 1:.N, by = .(USAF)]
+stations <- stations[n == 1,][, n := NULL]
+```
+
+```{r}
+met_stations <- left_join(
+  x = met,
+  y = stations,
+  by = c("USAFID" = "USAF")
+)
+```
+
+```{r}
+nrow(met_stations)
+```
+
+## Question 1
+
+```{r}
+head(met_stations)
+```
+
+```{r}
+summary(met_stations$temp)
+summary(met_stations$wind.sp)
+summary(met_stations$atm.press)
+```
+
+```{r}
+met_stations$temp[met_stations$temp < -16] <- NA
+```
+
+```{r}
+summary(met_stations$temp)
+```
+
+```{r}
+met_stations_clean <- na.omit(met_stations)
+```
+
+```{r}
+USAFID_Median_temp <- met_stations_clean$USAFID[met_stations_clean$temp == 23.5]
+print(USAFID_Median_temp)
+```
+
+```{r}
+median_temp <- 23.5
+met_stations$abs_diff <- abs(met_stations$temp - median_temp)
+closest_station <- met_stations$USAFID[which.min(met_stations$abs_diff)]
+print(closest_station)
+```
+
+```{r}
+USAFID_Median_wind.sp <- met_stations_clean$USAFID[met_stations_clean$temp == 2.10]
+print(USAFID_Median_wind.sp)
+```
+
+```{r}
+median_wind_sp <- 2.10
+met_stations$abs_diff_wind_sp <- abs(met_stations$wind.sp - median_wind_sp)
+closest_station_wind_sp <- met_stations$USAFID[which.min(met_stations$abs_diff_wind_sp)]
+print(closest_station_wind_sp)
+```
+
+```{r}
+USAFID_Median_atm.press <- met_stations_clean$USAFID[met_stations_clean$temp == 1014.1]
+print(USAFID_Median_atm.press)
+```
+
+```{r}
+median_atm_press <- 1014.1
+met_stations$abs_diff_atm_press <- abs(met_stations$atm.press - median_atm_press)
+closest_station_atm_press <- met_stations$USAFID[which.min(met_stations$abs_diff_atm_press)]
+print(closest_station_atm_press)
+```
+
+```{r}
+rows_with_usafid_690150 <- met_stations[met_stations$USAFID == 690150, ]
+print(rows_with_usafid_690150$temp)
+```
+
+The station with the median temperature is USAFID:720113. The station with both the median wind speed and atmospheric pressure is 690150. I checked to see if the station 690150 has the median temperature as well. It appears that the temperature at this station is more commonly above this median temperature, though it has gotten close multiple times.
+
+## Question 2
+
+```{r}
+library(dplyr)
+station_distance <- met_stations %>%
+  group_by(STATE) %>%
+  mutate(distance = sqrt((temp - median(temp))^2 + (wind.sp - median(wind.sp))^2 + (atm.press - median(atm.press))^2)) %>%
+  ungroup()
+most_representative_stations <- station_distance %>%
+  group_by(STATE) %>%
+  arrange(distance, lat) %>%
+  slice(1) %>%
+  ungroup()
+print(most_representative_stations)
+```
+
+## Question 3
+
+```{r}
+library(dplyr)
+library(geosphere)
+calculate_distance <- function(lat1, lon1, lat2, lon2) {
+  if (!is.na(lat1) && !is.na(lon1) && !is.na(lat2) && !is.na(lon2)) {
+    dist <- distHaversine(c(lon1, lat1), c(lon2, lat2))
+    return(dist)
+  } else {
+    return(NA)
+  }
+}
+state_midpoints <- met_stations %>%
+  group_by(STATE) %>%
+  summarize(mid_lat = mean(lat, na.rm = TRUE), mid_lon = mean(lon, na.rm = TRUE))
+station_distances <- met_stations %>%
+  left_join(state_midpoints, by = "STATE") %>%
+  rowwise() %>%
+  mutate(distance = calculate_distance(lat, lon, mid_lat, mid_lon))
+closest_stations <- station_distances %>%
+  group_by(STATE) %>%
+  filter(distance == min(distance, na.rm = TRUE)) %>%
+  ungroup()
+print(closest_stations)
+```
+
+```{r}
+install.packages("leaflet", repos = "https://cran.cnr.berkeley.edu")
+library(leaflet)
+map <- leaflet() %>%
+    addProviderTiles("OpenStreetMap.Mapnik") %>%
+  addCircleMarkers(
+    data = closest_stations,
+    lat = ~lat,
+    lng = ~lon,
+    radius = 3, 
+    color = "blue",  
+    fillColor = "blue", 
+    fillOpacity = 0.7,
+    popup = ~USAFID,  
+    label = ~USAFID  
+  ) %>%
+  addCircleMarkers(
+    data = most_representative_stations,
+    lat = ~lat,
+    lng = ~lon,
+    radius = 6, 
+    color = "red",
+    fillColor = "red",
+    fillOpacity = 0.7,
+    popup = ~USAFID,  
+    label = ~USAFID  
+  )
+map
+```
