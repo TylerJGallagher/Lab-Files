@@ -1,0 +1,166 @@
+---
+title: "lab_06"
+author: "Tyler Gallagher"
+format:
+   html:
+     embed-resources: true
+editor: visual
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidytext)
+library(tidyverse)
+library(readr)
+library(forcats)
+```
+
+```{r}
+url <- "https://raw.githubusercontent.com/USCbiostats/data-science-data/master/00_mtsamples/mtsamples.csv"
+data <- readr::read_csv(url)
+```
+
+```{r}
+str(data)
+```
+
+```{r}
+head(data)
+```
+
+## Question 1
+
+```{r}
+category_counts <- data %>% count(medical_specialty)
+print(category_counts)
+```
+
+The n by medical_specialty appears to correspond for the total n, therefore there is not overlap of one data point between multiple medical specialties. However, there are multiple data points that each belong to an individual medical specialty.
+
+## Question 2
+
+```{r}
+data %>%
+  unnest_tokens(token, transcription) %>%
+  count(token) %>%
+  top_n(20, n) %>%
+  ggplot(aes(n, token)) + 
+  geom_col()
+```
+
+## Question 3
+
+```{r}
+data %>%
+  unnest_tokens(token, transcription) %>%
+  anti_join(stop_words, by = c("token" = "word")) %>%
+  count(token, sort = TRUE)
+```
+
+```{r}
+data %>%
+  unnest_tokens(word, transcription) %>%
+  anti_join(stop_words, by = c("word")) %>%
+  count(word) %>%
+  top_n(20, n) %>%
+  ggplot(aes(n, fct_reorder(word, n))) + 
+  geom_col()
+```
+
+```{r}
+data %>%
+  unnest_tokens(word, transcription) %>%
+  filter(!str_detect(word, "^\\d+$")) %>%  # Filter out numeric tokens
+  anti_join(stop_words, by = c("word")) %>%
+  count(word) %>%
+  top_n(20, n) %>%
+  ggplot(aes(n, fct_reorder(word, n))) + 
+  geom_col()
+```
+
+## Question 4
+
+```{r}
+data %>%
+  unnest_tokens(ngram, transcription, token = "ngrams", n = 2) %>%
+  count(ngram) %>%
+  top_n(20, n) %>%
+  ggplot(aes(n, fct_reorder(ngram, n))) + 
+  geom_col()
+```
+
+```{r}
+data %>%
+  unnest_tokens(ngram, transcription, token = "ngrams", n = 3) %>%
+  count(ngram) %>%
+  top_n(20, n) %>%
+  ggplot(aes(n, fct_reorder(ngram, n))) + 
+  geom_col()
+```
+
+## Question 5
+
+```{r}
+data %>%
+  unnest_tokens(ngram, transcription, token = "ngrams", n = 2) %>%
+  separate(ngram, into = c("word1", "word2"), sep = " ") %>%
+  filter(word1 == "patient") %>%
+  count(word2) %>%
+  arrange(desc(n))
+```
+
+```{r}
+data %>%
+  unnest_tokens(ngram, transcription, token = "ngrams", n = 2) %>%
+  separate(ngram, into = c("word1", "word2"), sep = " ") %>%
+  filter(word2 == "patient") %>%
+  count(word1) %>%
+  arrange(desc(n))
+```
+
+## Question 6
+
+```{r}
+data_cleaned <- data %>%
+  unnest_tokens(word, transcription) %>%
+  anti_join(stop_words, by = c("word"))
+top_5_words_by_specialty <- data_cleaned %>%
+  group_by(medical_specialty) %>%
+  count(word) %>%
+  top_n(5, n) %>%
+  arrange(medical_specialty, desc(n))
+print(top_5_words_by_specialty)
+```
+
+Top 5 words by specialty is listed above in descending order.
+
+## Question 7
+
+I am interested in "ENT - Otolaryngology". Since this is a surgical subspecialty where pain control is often a focus, I would like to compare references to the word "pain" in ENT compared to other specialties.
+
+```{r}
+ent_data <- data %>%
+  filter(medical_specialty == "ENT - Otolaryngology")
+ent_pain_rate <- ent_data %>%
+  unnest_tokens(word, transcription) %>%
+  anti_join(stop_words, by = c("word")) %>%
+  count(word) %>%
+  filter(word == "pain") %>%
+  summarise(pain_rate = n() / nrow(ent_data))
+other_data <- data %>%
+  filter(medical_specialty != "ENT - Otolaryngology")
+other_pain_rate <- other_data %>%
+  unnest_tokens(word, transcription) %>%
+  anti_join(stop_words, by = c("word")) %>%
+  count(word) %>%
+  filter(word == "pain") %>%
+  summarise(pain_rate = n() / nrow(other_data))
+print(ent_pain_rate)
+```
+
+```{r}
+print(other_pain_rate)
+```
+
+The rate at which the word pain is utilized in ENT notes (0.0102) is higher than in other specialties (0.0002).
