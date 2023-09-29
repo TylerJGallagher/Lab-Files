@@ -1,0 +1,211 @@
+---
+title: "HW_1"
+author: "Tyler Gallagher"
+format:
+   html:
+     embed-resources: true
+editor: visual
+---
+
+## Section 1
+
+```{r}
+library(data.table)
+library(tidyverse)
+```
+
+```{r}
+epa22 <- fread("/Users/TylerGallagher13/Desktop/2022_EPA_Data.csv")
+epa02 <- fread("/Users/TylerGallagher13/Desktop/2002_EPA_Data.csv")
+```
+
+```{r}
+dim(epa22)
+```
+
+```{r}
+str(epa22)
+```
+
+```{r}
+head(epa22)
+```
+
+```{r}
+tail(epa22)
+```
+
+```{r}
+summary(epa22$`Daily Mean PM2.5 Concentration`)
+```
+
+A concentration below 0 does not seem possible. I will delete observations below 0 concentration.
+
+```{r}
+epa22 <- epa22[epa22$`Daily Mean PM2.5 Concentration`>0]
+summary(epa22$`Daily Mean PM2.5 Concentration`)
+```
+
+Now, I will repeat these things for the other data table.
+
+```{r}
+dim(epa02)
+```
+
+```{r}
+str(epa02)
+```
+
+```{r}
+head(epa02)
+```
+
+```{r}
+tail(epa02)
+```
+
+```{r}
+summary(epa02$`Daily Mean PM2.5 Concentration`)
+```
+
+Since the minimum concentration is zero, this is a logical reading. We can move on to next steps.
+
+## Section 2
+
+```{r}
+library(dplyr)
+epa22 <- epa22 %>%
+  mutate(year = "2022")
+```
+
+```{r}
+epa02 <- epa02 %>%
+  mutate(year = "2002")
+```
+
+```{r}
+epa0222 <- rbind(epa02, epa22)
+```
+
+```{r}
+head(epa0222)
+summary(epa0222$year)
+```
+
+```{r}
+names(epa0222)[names(epa0222) == "Daily Mean PM2.5 Concentration"] <- "PM2.5"
+summary(epa0222$PM2.5)
+```
+
+## Section 3
+
+```{r}
+library(leaflet)
+library(RColorBrewer)
+```
+
+```{r}
+my_map <- leaflet(data = epa0222) %>%
+  addTiles()
+color_mapping <- colorFactor(
+  palette = "Set1",
+  domain = epa0222$year
+)
+my_map <- my_map %>%
+  addCircleMarkers(
+    lng = ~SITE_LONGITUDE,
+    lat = ~SITE_LATITUDE, 
+    color = ~color_mapping(year),
+    radius = 5,
+    fillOpacity = 0.7 
+  )
+my_map
+```
+
+There are monitoring sites throughout California. There is a region in the Southeast of the state that is poorly covered by weather monitoring devices. There is a heavy concentration along the coastline, particularly in Los Angeles and San Francisco.
+
+## Section 4
+
+In section 1, I already addressed the issue of implausible values for PM2.5 concentration (ones that were negative).
+
+```{r}
+summary(epa0222$PM2.5)
+```
+
+There do not appear to be any missing NA values.
+
+## Section 5
+
+First, we will create summary statistics and exploratory plots for the state level.
+
+```{r}
+table(epa0222$STATE)
+```
+
+```{r}
+summary(epa0222$PM2.5)
+```
+
+```{r}
+hist(epa0222$PM2.5)
+```
+
+```{r}
+boxplot(epa0222$PM2.5, col = "magenta")
+```
+
+```{r}
+plot(epa0222$year, epa0222$PM2.5, pch=10, cex=0.5)
+```
+
+It appears that in California generally, the data is right-skewed, meaning most days have a lower mean PM2.5 level, but there are many outliers at higher levels. There is a daily mean of 10.2, though highest readings are above 300. This trend is particularly accentuated in the boxplot. The scatterplot shows that there are many higher individual mean days in 2022 as opposed to 2002.
+
+Now, we will create summary statistics and exploratory plots for the county level.
+
+```{r}
+table(epa0222$COUNTY)
+```
+
+```{r}
+lac_data <- subset(epa0222, COUNTY == "Los Angeles")
+summary(lac_data$PM2.5)
+```
+
+```{r}
+hist(lac_data$PM2.5)
+```
+
+```{r}
+boxplot(lac_data$PM2.5, col = "pink")
+```
+
+```{r}
+plot(lac_data$year, lac_data$PM2.5, pch=10, cex=0.5)
+```
+
+It appears that in Los Angeles county generally, the data is right-skewed, meaning most days have a lower mean PM2.5 level, but there are many outliers at higher levels. Mean PM2.5 level is 13.2 with highest numbers above 70. This trend is particularly accentuated in the boxplot. The scatterplot shows that the highest mean days of PM2.5 are in 2002 as opposed to 2020, which is different from the trends at the overall California level.
+
+Now, we will create summary statistics and plots for the site in Los Angeles.
+
+```{r}
+table(epa0222$'Site Name')
+```
+
+```{r}
+los_angeles_data <- subset(epa0222, `Site Name` == "Los Angeles-North Main Street")
+summary(los_angeles_data$PM2.5)
+```
+
+```{r}
+boxplot(los_angeles_data$PM2.5, col = "orange")
+```
+
+```{r}
+hist(los_angeles_data$PM2.5)
+```
+
+```{r}
+plot(los_angeles_data$year, los_angeles_data$PM2.5, pch=10, cex=0.5)
+```
+
+It appears that in Los Angeles city, the data is right-skewed, meaning most days have a lower mean PM2.5 level, but there are many outliers at higher levels. Mean PM2.5 level is 14.6 with highest numbers above 60. This trend is particularly accentuated in the boxplot. The scatterplot shows that the highest mean days of PM2.5 are in 2002 as opposed to 2020, which is different from the trends at the overall California level.
