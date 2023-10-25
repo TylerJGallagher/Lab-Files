@@ -1,0 +1,96 @@
+---
+title: "Lab_09"
+author: "Tyler Gallagher"
+format:
+   html:
+     embed-resources: true
+editor: visual
+---
+
+## Problem 1, Part 1
+
+```{r}
+fun1 <- function(n = 100, k = 4, lambda = 4) {
+  x <- NULL
+  for (i in 1:n){
+    x <- rbind(x, rpois(k, lambda))    
+  }
+  return(x)
+}
+
+fun1alt <- function(n = 100, k = 4, lambda = 4) {
+  x <- matrix(rpois(n * k, lambda), nrow = n, byrow = TRUE)
+  return(x)
+}
+```
+
+```{r}
+library("microbenchmark")
+```
+
+```{r}
+mb <- microbenchmark(
+  fun1(),
+  fun1alt()
+)
+print(mb)
+```
+
+## Problem 1, Part 2
+
+```{r}
+set.seed(1234)
+x <- matrix(rnorm(1e4), nrow=10)
+fun2 <- function(x) {
+  apply(x, 2, max)
+}
+```
+
+```{r}
+fun2alt <- function(x) {
+  colMax <- apply(x, 2, max)
+  return(colMax)
+}
+```
+
+```{r}
+mb2 <- microbenchmark(
+  fun2(x),
+  fun2alt(x)
+)
+print(mb2)
+```
+
+## Problem 3, Part1/2
+
+```{r}
+library(foreach)
+library(doParallel)
+my_boot <- function(dat, stat, R, ncpus = 1L) {
+  registerDoParallel(cores = ncpus)
+  n <- nrow(dat)
+  idx <- matrix(sample.int(n, n * R, TRUE), nrow = n, ncol = R)
+  ans <- foreach(i = 1:R, .combine = rbind) %dopar% {
+    dat_i <- dat[idx[, i], , drop = FALSE]
+    stat(dat_i)
+  }
+  return(ans)
+}
+my_stat <- function(d) coef(lm(y ~ x, data = d))
+set.seed(1)
+n <- 500
+R <- 4000
+x <- cbind(rnorm(n))
+y <- x * 5 + rnorm(n)
+ans0 <- confint(lm(y ~ x))
+ans1 <- my_boot(dat = data.frame(x, y), my_stat, R = R, ncpus = 2L)
+t(apply(ans1, 2, quantile, c(0.025, 0.975)))
+ans0
+```
+
+## Problem 3, Part 3
+
+```{r}
+system.time(my_boot(dat = data.frame(x, y), my_stat, R = 4000, ncpus = 1L))
+system.time(my_boot(dat = data.frame(x, y), my_stat, R = 4000, ncpus = 2L))
+```
