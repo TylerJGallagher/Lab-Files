@@ -1,0 +1,205 @@
+---
+title: "Lab_10"
+author: "Tyler Gallagher"
+format:
+   html:
+     embed-resources: true
+editor: visual
+---
+
+```{r}
+library(RSQLite)
+library(DBI)
+con <- dbConnect(SQLite(), ":memory:")
+actor <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/actor.csv")
+rental <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/rental.csv")
+customer <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/customer.csv")
+payment <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/payment_p2007_01.csv")
+dbWriteTable(con, "actor", actor)
+dbWriteTable(con, "rental", rental)
+dbWriteTable(con, "customer", customer)
+dbWriteTable(con, "payment", payment)
+```
+
+```{r}
+dbListTables(con)
+```
+
+```{r}
+result <- dbGetQuery(con, "PRAGMA table_info(actor)")
+knitr::kable(result)
+```
+
+## Exercise 1 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT actor_id, first_name, last_name
+  FROM actor
+  ORDER BY last_name, first_name;
+")
+knitr::kable(result)
+```
+
+## Exercise 2 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT actor_id, first_name, last_name
+  FROM actor
+  WHERE last_name IN ('WILLIAMS', 'DAVIS');
+")
+knitr::kable(result)
+```
+
+## Exercise 3 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT DISTINCT customer_id
+  FROM rental
+  WHERE date(rental_date) = '2005-07-05';
+")
+knitr::kable(result)
+```
+
+## Exercise 4.1 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT *
+  FROM payment
+  WHERE amount IN (1.99, 7.99, 9.99);
+")
+knitr::kable(result)
+```
+
+```{r}
+head(payment)
+```
+
+## Exercise 4.2 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT *
+  FROM payment
+  WHERE amount > 5;
+")
+knitr::kable(result)
+```
+
+## Exercise 4.3
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT *
+  FROM payment
+  WHERE amount > 5 AND amount < 8;
+")
+knitr::kable(result)
+```
+
+## Exercise 5 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT payment.payment_id, payment.amount
+  FROM payment
+  INNER JOIN customer ON payment.customer_id = customer.customer_id
+  WHERE customer.last_name = 'DAVIS';
+")
+knitr::kable(result)
+```
+
+## Exercise 6.1 
+
+```{r}
+result <- dbGetQuery(con, "SELECT COUNT(*) AS row_count FROM rental;")
+knitr::kable(result)
+```
+
+## Exercise 6.2 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT customer_id, COUNT(*) AS rental_count
+  FROM rental
+  GROUP BY customer_id;
+")
+knitr::kable(result)
+```
+
+## Exercise 6.3 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT customer_id, COUNT(*) AS rental_count
+  FROM rental
+  GROUP BY customer_id
+  ORDER BY rental_count DESC;
+")
+knitr::kable(result)
+```
+
+## Exercise 6.4
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT customer_id, COUNT(*) AS rental_count
+  FROM rental
+  GROUP BY customer_id
+  HAVING rental_count >= 40
+  ORDER BY rental_count DESC;
+")
+knitr::kable(result)
+```
+
+## Exercise 7 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT
+    MAX(amount) AS max_amount,
+    MIN(amount) AS min_amount,
+    AVG(amount) AS avg_amount,
+    SUM(amount) AS total_amount
+  FROM payment;
+")
+knitr::kable(result)
+```
+
+## Exercise 7.1 
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT customer_id,
+    MAX(amount) AS max_amount,
+    MIN(amount) AS min_amount,
+    AVG(amount) AS avg_amount,
+    SUM(amount) AS total_amount
+  FROM payment
+  GROUP BY customer_id;
+")
+knitr::kable(result)
+```
+
+## Exercise 7.2
+
+```{r}
+result <- dbGetQuery(con, "
+  SELECT customer_id,
+    MAX(amount) AS max_amount,
+    MIN(amount) AS min_amount,
+    AVG(amount) AS avg_amount,
+    SUM(amount) AS total_amount
+  FROM payment
+  GROUP BY customer_id
+  HAVING COUNT(*) > 5;
+")
+knitr::kable(result)
+```
+
+```{r}
+dbDisconnect(con)
+```
