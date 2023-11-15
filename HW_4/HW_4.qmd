@@ -1,0 +1,179 @@
+---
+title: "HW_4"
+author: "Tyler Gallagher"
+format:
+   html:
+     embed-resources: true
+editor: visual
+---
+
+## HPC
+
+```{r}
+fun1 <- function(mat) {
+  n <- nrow(mat)
+  ans <- double(n) 
+  for (i in 1:n) {
+    ans[i] <- sum(mat[i, ])
+  }
+  ans
+}
+fun1alt <- function(mat) {
+  rowSums(mat)
+}
+```
+
+```{r}
+fun2 <- function(mat) {
+  n <- nrow(mat)
+  k <- ncol(mat)
+  ans <- mat
+  for (i in 1:n) {
+    for (j in 2:k) {
+      ans[i,j] <- mat[i, j] + ans[i, j - 1]
+    }
+  }
+  ans
+}
+fun2alt <- function(mat) {
+  apply(mat, 1, cumsum)
+}
+```
+
+## Question 1 
+
+```{r}
+library(microbenchmark)
+set.seed(2315)
+dat <- matrix(rnorm(200 * 100), nrow = 200)
+result_original_fun1 <- fun1(dat)
+result_modified_fun1 <- fun1alt(dat)
+identical(result_original_fun1, result_modified_fun1)
+microbenchmark::microbenchmark(
+  fun1(dat),
+  fun1alt(dat),
+  unit = "relative"
+)
+result_original_fun2 <- fun2(dat)
+result_modified_fun2 <- fun2alt(dat)
+identical(result_original_fun2, result_modified_fun2)
+microbenchmark::microbenchmark(
+  fun2(dat),
+  fun2alt(dat),
+  unit = "relative"
+)
+```
+
+```{r}
+sim_pi <- function(n = 1000, i = NULL) {
+  p <- matrix(runif(n*2), ncol = 2)
+  mean(rowSums(p^2) < 1) * 4
+}
+set.seed(1231)
+system.time({
+  ans <- unlist(lapply(1:4000, sim_pi, n = 10000))
+  print(mean(ans))
+})
+```
+
+## Question 2 
+
+```{r}
+library(parallel)
+
+# Parallelized version of sim_pi
+sim_pi_parallel <- function(n = 1000, i = NULL) {
+  # Function to generate a single estimate of pi
+  generate_pi_estimate <- function(dummy) {
+    p <- matrix(runif(n * 2), ncol = 2)
+    mean(rowSums(p^2) < 1) * 4
+  }
+
+  # Create a cluster for parallel processing
+  cl <- makeCluster(detectCores())
+  pi_estimates <- parLapply(cl, 1:i, generate_pi_estimate)
+  stopCluster(cl)
+  mean(pi_estimates)
+}
+system.time({
+  result_parallel <- sim_pi_parallel(n = 1000, i = 100)
+})
+```
+
+## Question 3 
+
+```{r}
+library(RSQLite)
+library(DBI)
+con <- dbConnect(SQLite(), ":memory:")
+film <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/film.csv")
+film_category <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/film_category.csv")
+category <- read.csv("https://raw.githubusercontent.com/ivanceras/sakila/master/csv-sakila-db/category.csv")
+dbWriteTable(con, "film", film)
+dbWriteTable(con, "film_category", film_category)
+dbWriteTable(con, "category", category)
+```
+
+```{r}
+query <- "
+SELECT rating, COUNT(*) AS movie_count
+FROM film
+GROUP BY rating
+"
+result <- dbGetQuery(con, query)
+print(result)
+```
+
+## Question 4 
+
+```{r}
+query <- "
+SELECT
+  rating,
+  AVG(replacement_cost) AS avg_replacement_cost,
+  AVG(rental_rate) AS avg_rental_rate
+FROM film
+GROUP BY rating
+"
+result <- dbGetQuery(con, query)
+print(result)
+```
+
+## Question 5 
+
+```{r}
+query <- "
+SELECT
+  fc.category_id,
+  COUNT(*) AS film_count
+FROM
+  film_category fc
+  JOIN film f ON fc.film_id = f.film_id
+GROUP BY
+  fc.category_id
+"
+result <- dbGetQuery(con, query)
+print(result)
+```
+
+## Question 6
+
+```{r}
+query <- "
+SELECT
+  c.category_id,
+  c.name AS category_name,
+  COUNT(*) AS film_count
+FROM
+  film_category fc
+  JOIN film f ON fc.film_id = f.film_id
+  JOIN category c ON fc.category_id = c.category_id
+GROUP BY
+  c.category_id, c.name
+ORDER BY
+  film_count DESC
+LIMIT 1
+"
+result <- dbGetQuery(con, query)
+print(result)
+```
