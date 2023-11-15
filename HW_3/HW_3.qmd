@@ -1,0 +1,115 @@
+---
+title: "HW_3"
+author: "Tyler Gallagher"
+format:
+   html:
+     embed-resources: true
+editor: visual
+---
+
+## Homework 3
+
+```{r}
+file_path <- "/Users/TylerGallagher13/Desktop/pubmed.csv"
+abstracts <- read.table(file_path, header = TRUE, sep = "\t")
+```
+
+## Question 1
+
+```{r}
+library(tm)
+library(tidytext)
+library(dplyr)
+library(stopwords)
+abstracts_tokens <- abstracts %>%
+  unnest_tokens(word, abstract.term)
+top_words <- abstracts_tokens %>%
+  count(word, sort = TRUE) %>%
+  head(10)
+print(top_words)
+```
+
+```{r}
+abstracts_tokens <- abstracts %>%
+  unnest_tokens(word, abstract.term)
+top_words <- abstracts_tokens %>%
+  count(word, sort = TRUE) %>%
+  head(10)
+print(top_words)
+stop_words <- data.frame(word = stopwords("en"))
+abstracts_tokens_no_stop <- abstracts_tokens %>%
+  anti_join(stop_words)
+top_words_no_stop <- abstracts_tokens_no_stop %>%
+  count(word, sort = TRUE) %>%
+  head(10)
+print(top_words_no_stop)
+
+```
+
+Before considering removal of stop words, the five most common words are the (28,126 observations), of (24,760), and (19,993), in (14,653), and to (10,920). This changes substantially after removing stop words. Now, the most common words are covid (8,256), 19 (7,080), cancer (4,786), patients (4,684), and prostate (4,619). It appears that this set of abstracts focuses on COVID-19, cancer, and the prostate.
+
+## Question 2
+
+```{r}
+abstracts_bigrams <- abstracts %>%
+  unnest_tokens(bigram, abstract.term, token = "ngrams", n = 2)
+stop_words <- data.frame(word = stopwords("en"))
+abstracts_bigrams_no_stop <- abstracts_bigrams %>%
+  filter(!bigram %in% paste(stop_words$word, collapse = "|"))
+top_bigrams_no_stop <- abstracts_bigrams_no_stop %>%
+  count(bigram, sort = TRUE) %>%
+  head(10)
+print(top_bigrams_no_stop)
+```
+
+```{r}
+library(ggplot2)
+ggplot(top_bigrams_no_stop, aes(x = reorder(bigram, n), y = n)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  labs(x = "Bigram", y = "Frequency") +
+  coord_flip() +
+  theme_minimal() 
+```
+
+## Question 3
+
+```{r}
+
+# Assuming you have a dataset named "abstracts" with a column "abstract.term"
+
+# Tokenize the abstracts and remove stop words
+abstracts_tokens <- abstracts %>%
+  unnest_tokens(word, abstract.term) %>%
+  anti_join(stop_words)
+
+# Calculate term frequency (TF)
+tf <- abstracts_tokens %>%
+  group_by(word) %>%
+  summarise(tf = n())
+
+# Calculate document frequency (DF)
+df <- abstracts_tokens %>%
+  distinct(word) %>%
+  group_by(word) %>%
+  summarise(df = n())
+
+# Calculate inverse document frequency (IDF)
+N <- nrow(abstracts)
+idf <- df %>%
+  mutate(idf = log(N / df))
+
+# Calculate TF-IDF
+tfidf <- tf %>%
+  left_join(idf, by = "word") %>%
+  mutate(tfidf = tf * idf)
+
+# Find the top 5 tokens with the highest TF-IDF values
+top_tokens <- tfidf %>%
+  arrange(desc(tfidf)) %>%
+  top_n(5)
+
+# Print the result
+print(top_tokens)
+```
+
+The TD-IDF demonstrates the relative overall importance and frequency of words weighted together. The five with the most value include covid (TF-IDF=63,611), 19 (54,550), cancer (36,875), patients (36,089), and prostate (35,589). Interestingly, the TF-IDF top-5 is the same top-5 in the same order as the individually tokenized words. Additionally, the TF-IDF values seem similar in scale to the raw n of the words.
